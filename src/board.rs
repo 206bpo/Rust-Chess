@@ -1,27 +1,32 @@
 use crate::Color;
+use crate::pieces::{Piece, PieceTypes};
 use core::fmt;
 
-use crate::pieces::{Piece, PieceTypes};
-pub struct Board {
-    pub field: [[FieldState; 8]; 8],
-}
-
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct Pos {
     y: usize,
     x: usize,
-}
-
-#[derive(Copy, Clone)]
-pub enum FieldState {
-    Occupied(Piece),
-    Empty,
 }
 
 impl Pos {
     pub fn new(y: usize, x: usize) -> Pos {
         Pos { y, x }
     }
+}
+
+#[derive(Copy, Clone, Debug)]
+pub enum FieldState {
+    Occupied(Piece),
+    Empty,
+}
+
+// pub struct Square {
+//     position: Pos,
+//     state: FieldState
+// }
+
+pub struct Board {
+    pub field: [[FieldState; 8]; 8],
 }
 
 impl Board {
@@ -72,10 +77,15 @@ impl Board {
         board.add_piece(Piece::new(PieceTypes::KING, Color::BLACK), Pos::new(0, 4));
         board
     }
-    pub fn add_piece(&mut self, piece: Piece, position: Pos) {
+    fn add_piece(&mut self, piece: Piece, position: Pos) {
         let x = position.x;
         let y = position.y;
         self.field[y][x] = FieldState::Occupied(piece);
+    }
+    pub fn get_state_at_pos(&self, position: Pos) -> FieldState {
+        let x = position.x;
+        let y = position.y;
+        self.field[y][x]
     }
 }
 
