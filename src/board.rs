@@ -2,15 +2,18 @@ use crate::Color;
 use crate::pieces::{Piece, PieceTypes};
 use core::fmt;
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub struct Pos {
-    y: usize,
-    x: usize,
+    pub y: i8,
+    pub x: i8,
 }
 
 impl Pos {
-    pub fn new(y: usize, x: usize) -> Pos {
+    pub fn new(y: i8, x: i8) -> Pos {
         Pos { y, x }
+    }
+    pub fn is_in_bounds(&self) -> bool {
+        self.y < 8 && self.y >= 0 && self.x < 8 && self.x >= 0
     }
 }
 
@@ -77,23 +80,59 @@ impl Board {
         board.add_piece(Piece::new(PieceTypes::KING, Color::BLACK), Pos::new(0, 4));
         board
     }
-    fn add_piece(&mut self, piece: Piece, position: Pos) {
-        let x = position.x;
-        let y = position.y;
+    pub fn add_piece(&mut self, piece: Piece, position: Pos) {
+        let x = position.x as usize;
+        let y = position.y as usize;
         self.field[y][x] = FieldState::Occupied(piece);
     }
     pub fn get_state_at_pos(&self, position: Pos) -> FieldState {
-        let x = position.x;
-        let y = position.y;
+        let x = position.x as usize;
+        let y = position.y as usize;
         self.field[y][x]
+    }
+    fn set_state_at_pos(&mut self, position: Pos, new_state: FieldState) {
+        if !position.is_in_bounds() {
+            return;
+        };
+        self.field[position.y as usize][position.x as usize] = new_state;
+    }
+    pub fn move_piece(&mut self, from: Pos, to: Pos) {
+        let temp = self.get_state_at_pos(from);
+        self.set_state_at_pos(from, FieldState::Empty);
+        self.set_state_at_pos(to, temp);
+    }
+    pub fn draw(&self) {
+        print!("{}", self);
     }
 }
 
 impl fmt::Display for Board {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(f, "  A B C D E F G H")?;
+        writeln!(f, "   A B C D E F G H\n")?;
         for (i, y) in self.field.iter().enumerate() {
-            write!(f, "{} ", i + 1)?;
+            write!(f, "{}  ", i + 1)?;
+            for x in y {
+                write!(
+                    f,
+                    "{} ",
+                    match x {
+                        FieldState::Occupied(p) => p.get_display(),
+                        _ => '0',
+                    }
+                )?;
+            }
+            write!(f, "  {}", 8 - i)?;
+            writeln!(f)?;
+        }
+        writeln!(f, "\n  A B C D E F G H")?;
+        Ok(())
+    }
+}
+impl fmt::Debug for Board {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        writeln!(f, "\nX 0 1 2 3 4 5 6 7")?;
+        for (i, y) in self.field.iter().enumerate() {
+            write!(f, "{} ", i)?;
             for x in y {
                 write!(
                     f,

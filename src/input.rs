@@ -25,7 +25,7 @@ impl MoveInstruction {
 }
 
 fn convert_player_input_to_pos(input: &str) -> Pos {
-    let x: usize = match input.get(0..1).unwrap() {
+    let x: i8 = match input.get(0..1).unwrap() {
         "a" => 0,
         "b" => 1,
         "c" => 2,
@@ -34,8 +34,8 @@ fn convert_player_input_to_pos(input: &str) -> Pos {
         "f" => 5,
         "g" => 6,
         "h" => 7,
-        _ => usize::MAX,
+        _ => i8::MAX,
     };
-    let y: usize = input.get(1..2).unwrap().parse().unwrap();
+    let y: i8 = input.get(1..2).unwrap().parse().unwrap();
     Pos::new(y - 1, x)
 }
