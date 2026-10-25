@@ -1,14 +1,21 @@
 mod board;
 mod input;
 pub mod pieces;
-use std::io;
 
-use crate::{board::FieldState, pieces::Color};
+use crate::{
+    board::{FieldState, Pos},
+    input::PromoteInstruction,
+    pieces::{Color, Piece, PieceTypes},
+};
 use board::Board;
 use input::MoveInstruction;
 
 fn main() {
-    let mut board: Board = Board::new_ready_to_play();
+    let mut board: Board = Board::new_empty();
+    board.add_piece(
+        Piece::new(pieces::PieceTypes::PAWN, Color::WHITE),
+        Pos::new(1, 0),
+    );
     board.draw();
     loop {
         next_player_move(&mut board);
@@ -18,11 +25,9 @@ fn main() {
 }
 
 fn next_player_move(board: &mut Board) {
-    let input = get_player_input();
     let instruction: MoveInstruction =
-        MoveInstruction::from_player_input(input).expect("can't parese instruction");
+        MoveInstruction::from_player_input().expect("can't parse instruction");
     let state_from = board.get_state_at_pos(instruction.from);
-    let state_to = board.get_state_at_pos(instruction.to);
     let piece_from = match state_from {
         FieldState::Occupied(p) => p,
         FieldState::Empty => {
@@ -31,16 +36,21 @@ fn next_player_move(board: &mut Board) {
     };
     let legal_moves = piece_from.get_legal_moves(instruction.from, board);
     if legal_moves.contains(&instruction.to) {
-        board.move_piece(instruction.from, instruction.to);
+        if (piece_from.piece_type == PieceTypes::PAWN)
+            && (instruction.to.y == 0 || instruction.to.y == 7)
+        {
+            dbg!("promotion detected");
+            let promote_instruction: PromoteInstruction =
+                match PromoteInstruction::from_player_input(instruction.to) {
+                    Some(instruction) => instruction,
+                    None => {
+                        return;
+                    }
+                };
+            board.move_piece(instruction.from, instruction.to);
+            board.promote(promote_instruction);
+        } else {
+            board.move_piece(instruction.from, instruction.to);
+        }
     }
-    dbg!(state_from, state_to);
-    dbg!(legal_moves);
-}
-
-fn get_player_input() -> String {
-    let mut input: String = String::new();
-    io::stdin()
-        .read_line(&mut input)
-        .expect("Something went wrong while reading line");
-    input
 }

@@ -1,6 +1,6 @@
 use crate::board::{Board, FieldState, Pos};
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum PieceTypes {
     PAWN,
     ROOK,
