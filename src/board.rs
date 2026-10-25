@@ -1,4 +1,3 @@
-use crate::input::PromoteInstruction;
 use crate::pieces::{Piece, PieceColor, PieceTypes};
 use core::fmt;
 
@@ -112,23 +111,23 @@ impl Board {
         let temp = self.get_state_at_pos(from);
         self.set_state_at_pos(from, FieldState::Empty);
         self.set_state_at_pos(to, temp);
+        self.draw();
     }
     pub fn draw(&self) {
         print!("{}", self);
     }
-    pub fn promote(&mut self, instruction: PromoteInstruction) {
-        let position = instruction.position;
+    pub fn promote(&mut self, position: Pos, new_piece: Piece) {
         dbg!(&position);
         if (position.y != 0 && position.y != 7) || !position.is_in_bounds() {
-            dbg!(&instruction);
             return;
         }
         let curr_piece = match self.get_state_at_pos(position) {
             FieldState::Occupied(p) => p,
             FieldState::Empty => return,
         };
-        let new_piece = Piece::new(instruction.new_type, curr_piece.color);
+        let new_piece = Piece::new(new_piece.piece_type, curr_piece.color);
         self.set_state_at_pos(position, FieldState::Occupied(new_piece));
+        self.draw();
     }
 }
 

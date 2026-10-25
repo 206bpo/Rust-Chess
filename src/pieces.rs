@@ -1,10 +1,7 @@
 use std::collections::HashMap;
 
 use image::imageops::FilterType;
-use macroquad::{
-    text,
-    texture::{FilterMode, Texture2D, load_texture},
-};
+use macroquad::texture::{FilterMode, Texture2D};
 
 use crate::board::{Board, FieldState, Pos};
 

@@ -1,25 +1,22 @@
 mod board;
-mod input;
 pub mod pieces;
 
 use std::collections::HashMap;
 
 use crate::{
     board::{
-        FieldState::{self, Occupied},
+        FieldState::{self},
         Pos,
     },
-    input::PromoteInstruction,
     pieces::{Piece, PieceColor, PieceTypes},
 };
 use board::Board;
-use input::MoveInstruction;
-use macroquad::{prelude::*, ui::Drag::No};
+use macroquad::prelude::*;
 fn window_conf() -> Conf {
     Conf {
         window_title: String::from("Chess"),
-        window_width: 800,
-        window_height: 800,
+        window_width: 1200,
+        window_height: 1200,
         window_resizable: false,
         ..Default::default()
     }
@@ -29,40 +26,67 @@ fn window_conf() -> Conf {
 async fn main() {
     set_pc_assets_folder("assets");
     let mut board: Board = Board::new_ready_to_play();
+    board.add_piece(
+        Piece::new(PieceTypes::PAWN, PieceColor::BLACK),
+        Pos::new(6, 4),
+    );
     board.draw();
     let tile_size: f32 = screen_width().min(screen_height()) / 8.0;
     let sprite_map: HashMap<(PieceTypes, PieceColor), Texture2D> =
         pieces::load_all_textures(tile_size).await;
     let mut legal_moves: Vec<Pos> = Vec::new();
     let mut active_piece: Option<Pos> = None;
-    let mut active_player = PieceColor::WHITE;
+    let mut active_player = PieceColor::BLACK;
+    let mut wait_for_promotion: bool = false;
     loop {
         draw_board_bg(tile_size);
         draw_pieces(&board, tile_size, &sprite_map);
         draw_legal_moves(&mut legal_moves, tile_size);
+        if wait_for_promotion {
+            draw_promotion_menu(
+                active_piece.unwrap(),
+                &active_player,
+                &sprite_map,
+                tile_size,
+            );
+        }
         {
             if is_mouse_button_pressed(MouseButton::Left) {
                 let (mx, my) = mouse_position();
-                handle_mouse_click(
-                    &mut board,
-                    &mut legal_moves,
-                    &mut active_piece,
-                    &mut active_player,
-                    tile_size,
-                    mx,
-                    my,
-                );
+                if wait_for_promotion {
+                    handle_mouse_click_for_promotion(
+                        &mut board,
+                        active_piece.unwrap(),
+                        &mut active_player,
+                        &mut wait_for_promotion,
+                        tile_size,
+                        mx,
+                        my,
+                    );
+                } else {
+                    handle_mouse_click_for_movement(
+                        &mut board,
+                        &mut legal_moves,
+                        &mut active_piece,
+                        &mut active_player,
+                        &mut wait_for_promotion,
+                        tile_size,
+                        mx,
+                        my,
+                    );
+                }
             }
         }
         next_frame().await;
     }
 }
 
-fn handle_mouse_click(
+fn handle_mouse_click_for_movement(
     board: &mut Board,
     legal_moves: &mut Vec<Pos>,
     active_piece: &mut Option<Pos>,
     active_player: &mut PieceColor,
+    wait_for_promotion: &mut bool,
     tile_size: f32,
     mx: f32,
     my: f32,
@@ -75,20 +99,31 @@ fn handle_mouse_click(
         return;
     }
 
-    if let Some(pice_pos) = active_piece.clone() {
-        if legal_moves.contains(&clicked_pos) {
-            board.move_piece(pice_pos, clicked_pos);
-            *active_piece = None;
+    if let Some(pice_pos) = active_piece
+        && legal_moves.contains(&clicked_pos)
+    {
+        board.move_piece(*pice_pos, clicked_pos);
+
+        if let FieldState::Occupied(p) = board.get_state_at_pos(clicked_pos)
+            && p.piece_type == PieceTypes::PAWN
+            && (clicked_pos.y == 0 || clicked_pos.y == 7)
+        {
+            *wait_for_promotion = true;
+            *active_piece = Some(clicked_pos);
             legal_moves.clear();
-            match active_player {
-                PieceColor::BLACK => *active_player = PieceColor::WHITE,
-                PieceColor::WHITE => *active_player = PieceColor::BLACK,
-                _ => {
-                    return;
-                }
-            }
             return;
         }
+
+        *active_piece = None;
+        legal_moves.clear();
+        match active_player {
+            PieceColor::BLACK => *active_player = PieceColor::WHITE,
+            PieceColor::WHITE => *active_player = PieceColor::BLACK,
+            _ => {
+                return;
+            }
+        }
+        return;
     }
 
     legal_moves.clear();
@@ -106,36 +141,56 @@ fn handle_mouse_click(
     }
 }
 
-fn next_player_move(board: &mut Board) {
-    let instruction: MoveInstruction =
-        MoveInstruction::from_player_input().expect("can't parse instruction");
-    let state_from = board.get_state_at_pos(instruction.from);
-    let piece_from = match state_from {
-        FieldState::Occupied(p) => p,
-        FieldState::Empty => {
-            return;
-        }
-    };
-    let legal_moves = piece_from.get_legal_moves(instruction.from, board);
-    if legal_moves.contains(&instruction.to) {
-        if (piece_from.piece_type == PieceTypes::PAWN)
-            && (instruction.to.y == 0 || instruction.to.y == 7)
-        {
-            dbg!("promotion detected");
-            let promote_instruction: PromoteInstruction =
-                match PromoteInstruction::from_player_input(instruction.to) {
-                    Some(instruction) => instruction,
-                    None => {
-                        return;
-                    }
-                };
-            board.move_piece(instruction.from, instruction.to);
-            board.promote(promote_instruction);
-        } else {
-            board.move_piece(instruction.from, instruction.to);
+fn handle_mouse_click_for_promotion(
+    board: &mut Board,
+    promote_position: Pos,
+    active_player: &mut PieceColor,
+    wait_for_promotion: &mut bool,
+    tile_size: f32,
+    mx: f32,
+    my: f32,
+) {
+    let clicked_position = Pos::new(
+        (my / tile_size).floor() as i8,
+        (mx / tile_size).floor() as i8,
+    );
+    if promote_position.x == clicked_position.x {
+        let piece_type = match active_player {
+            PieceColor::BLACK => match clicked_position.y {
+                7 => PieceTypes::QUEEN,
+                6 => PieceTypes::ROOK,
+                5 => PieceTypes::BISHOP,
+                4 => PieceTypes::KNIGHT,
+                _ => {
+                    return;
+                }
+            },
+            PieceColor::WHITE => match clicked_position.y {
+                1 => PieceTypes::QUEEN,
+                2 => PieceTypes::ROOK,
+                3 => PieceTypes::BISHOP,
+                4 => PieceTypes::KNIGHT,
+                _ => {
+                    return;
+                }
+            },
+            _ => {
+                return;
+            }
+        };
+        let new_piece: Piece = Piece::new(piece_type, *active_player);
+        board.promote(promote_position, new_piece);
+        *wait_for_promotion = false;
+        *active_player = match active_player {
+            PieceColor::BLACK => PieceColor::WHITE,
+            PieceColor::WHITE => PieceColor::BLACK,
+            _ => {
+                return;
+            }
         }
     }
 }
+
 fn draw_pieces(
     board: &Board,
     tile_size: f32,
@@ -181,5 +236,35 @@ fn draw_board_bg(tile_size: f32) {
                 curr_color,
             );
         }
+    }
+}
+
+fn draw_promotion_menu(
+    position: Pos,
+    active_player: &PieceColor,
+    sprite_map: &HashMap<(PieceTypes, PieceColor), Texture2D>,
+    tile_size: f32,
+) {
+    let types = [
+        PieceTypes::QUEEN,
+        PieceTypes::ROOK,
+        PieceTypes::BISHOP,
+        PieceTypes::KNIGHT,
+    ];
+    for (i, piece_type) in types.iter().enumerate() {
+        let offset = match active_player {
+            PieceColor::WHITE => 1,
+            PieceColor::BLACK => -1,
+            _ => 0,
+        };
+        let y = (position.y + (i as i8 * offset)) as f32 * tile_size;
+        let x = position.x as f32 * tile_size;
+        draw_rectangle(x, y, tile_size, tile_size, WHITE);
+        draw_texture(
+            sprite_map.get(&(*piece_type, *active_player)).unwrap(),
+            x,
+            y,
+            WHITE,
+        );
     }
 }
