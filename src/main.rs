@@ -35,6 +35,7 @@ async fn main() {
         pieces::load_all_textures(tile_size).await;
     let mut legal_moves: Vec<Pos> = Vec::new();
     let mut active_piece: Option<Pos> = None;
+    let mut active_player = PieceColor::WHITE;
     loop {
         draw_board_bg(tile_size);
         draw_pieces(&board, tile_size, &sprite_map);
@@ -46,6 +47,7 @@ async fn main() {
                     &mut board,
                     &mut legal_moves,
                     &mut active_piece,
+                    &mut active_player,
                     tile_size,
                     mx,
                     my,
@@ -60,6 +62,7 @@ fn handle_mouse_click(
     board: &mut Board,
     legal_moves: &mut Vec<Pos>,
     active_piece: &mut Option<Pos>,
+    active_player: &mut PieceColor,
     tile_size: f32,
     mx: f32,
     my: f32,
@@ -77,6 +80,13 @@ fn handle_mouse_click(
             board.move_piece(pice_pos, clicked_pos);
             *active_piece = None;
             legal_moves.clear();
+            match active_player {
+                PieceColor::BLACK => *active_player = PieceColor::WHITE,
+                PieceColor::WHITE => *active_player = PieceColor::BLACK,
+                _ => {
+                    return;
+                }
+            }
             return;
         }
     }
@@ -84,6 +94,9 @@ fn handle_mouse_click(
     legal_moves.clear();
     match board.get_state_at_pos(clicked_pos) {
         FieldState::Occupied(p) => {
+            if p.color != *active_player {
+                return;
+            }
             *active_piece = Some(clicked_pos);
             legal_moves.append(&mut p.get_legal_moves(clicked_pos, board));
         }
