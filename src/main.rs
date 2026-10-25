@@ -18,6 +18,10 @@ fn window_conf() -> Conf {
         window_width: 1200,
         window_height: 1200,
         window_resizable: false,
+        platform: miniquad::conf::Platform {
+            swap_interval: Some(1),
+            ..Default::default()
+        },
         ..Default::default()
     }
 }
@@ -26,7 +30,6 @@ fn window_conf() -> Conf {
 async fn main() {
     set_pc_assets_folder("assets");
     let mut board: Board = Board::new_ready_to_play();
-    board.draw();
     let tile_size: f32 = screen_width().min(screen_height()) / 8.0;
     let sprite_map: HashMap<(PieceTypes, PieceColor), Texture2D> =
         pieces::load_all_textures(tile_size).await;

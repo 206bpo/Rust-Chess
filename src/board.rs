@@ -111,13 +111,11 @@ impl Board {
         let temp = self.get_state_at_pos(from);
         self.set_state_at_pos(from, FieldState::Empty);
         self.set_state_at_pos(to, temp);
-        self.draw();
     }
     pub fn draw(&self) {
         print!("{}", self);
     }
     pub fn promote(&mut self, position: Pos, new_piece: Piece) {
-        dbg!(&position);
         if (position.y != 0 && position.y != 7) || !position.is_in_bounds() {
             return;
         }

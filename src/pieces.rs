@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::format};
 
 use image::imageops::FilterType;
 use macroquad::texture::{FilterMode, Texture2D};
@@ -70,38 +70,61 @@ impl Piece {
     }
 }
 
+macro_rules! sprite {
+    ($name:literal) => {
+        include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/assets/",
+            $name,
+            ".png"
+        )) as &'static [u8]
+    };
+}
+
+const SPRITES: [(PieceTypes, PieceColor, &[u8]); 12] = [
+    (PieceTypes::PAWN, PieceColor::WHITE, sprite!("pawn_white")),
+    (PieceTypes::PAWN, PieceColor::BLACK, sprite!("pawn_black")),
+    (PieceTypes::ROOK, PieceColor::WHITE, sprite!("rook_white")),
+    (PieceTypes::ROOK, PieceColor::BLACK, sprite!("rook_black")),
+    (
+        PieceTypes::KNIGHT,
+        PieceColor::WHITE,
+        sprite!("knight_white"),
+    ),
+    (
+        PieceTypes::KNIGHT,
+        PieceColor::BLACK,
+        sprite!("knight_black"),
+    ),
+    (
+        PieceTypes::BISHOP,
+        PieceColor::WHITE,
+        sprite!("bishop_white"),
+    ),
+    (
+        PieceTypes::BISHOP,
+        PieceColor::BLACK,
+        sprite!("bishop_black"),
+    ),
+    (PieceTypes::QUEEN, PieceColor::WHITE, sprite!("queen_white")),
+    (PieceTypes::QUEEN, PieceColor::BLACK, sprite!("queen_black")),
+    (PieceTypes::KING, PieceColor::WHITE, sprite!("king_white")),
+    (PieceTypes::KING, PieceColor::BLACK, sprite!("king_black")),
+];
+
 pub async fn load_all_textures(tile_size: f32) -> HashMap<(PieceTypes, PieceColor), Texture2D> {
-    let tile_size = tile_size.floor() as u16;
-    let mut map: HashMap<(PieceTypes, PieceColor), Texture2D> = HashMap::new();
-    let types: [(PieceTypes, &str); 7] = [
-        (PieceTypes::PAWN, "pawn"),
-        (PieceTypes::ROOK, "rook"),
-        (PieceTypes::KNIGHT, "knight"),
-        (PieceTypes::BISHOP, "bishop"),
-        (PieceTypes::QUEEN, "queen"),
-        (PieceTypes::KING, "king"),
-        (PieceTypes::EMPTY, ""),
-    ];
-    let colors: [(PieceColor, &str); 2] =
-        [(PieceColor::BLACK, "black"), (PieceColor::WHITE, "white")];
-    for (piece, piece_name) in types {
-        for (color, color_name) in colors {
-            if piece == PieceTypes::EMPTY {
-                map.insert((piece, color), Texture2D::empty());
-                continue;
-            }
-            let path = format!("assets/{piece_name}_{color_name}.png");
-            let img = image::open(path).unwrap().to_rgba8();
-            let img = image::imageops::resize(
-                &img,
-                tile_size as u32,
-                tile_size as u32,
-                FilterType::Lanczos3,
-            );
-            let texture = Texture2D::from_rgba8(tile_size, tile_size, &img);
-            texture.set_filter(FilterMode::Linear);
-            map.insert((piece, color), texture);
-        }
+    let size = tile_size.floor() as u32;
+    let mut map = HashMap::new();
+
+    for (piece, color, bytes) in SPRITES {
+        let img = image::load_from_memory(bytes)
+            .expect("embedded sprite is not a valid image")
+            .to_rgba8();
+        let img = image::imageops::resize(&img, size, size, FilterType::Lanczos3);
+
+        let texture = Texture2D::from_rgba8(size as u16, size as u16, &img);
+        texture.set_filter(FilterMode::Linear);
+        map.insert((piece, color), texture);
     }
     map
 }
