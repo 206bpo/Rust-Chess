@@ -1,6 +1,5 @@
-use crate::Color;
 use crate::input::PromoteInstruction;
-use crate::pieces::{Piece, PieceTypes};
+use crate::pieces::{Piece, PieceColor, PieceTypes};
 use core::fmt;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -18,7 +17,7 @@ impl Pos {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum FieldState {
     Occupied(Piece),
     Empty,
@@ -44,41 +43,53 @@ impl Board {
         // Pawns
         for i in 0..8 {
             board.add_piece(
-                Piece::new(PieceTypes::PAWN, Color::BLACK),
+                Piece::new(PieceTypes::PAWN, PieceColor::BLACK),
                 Pos { y: 1, x: i },
             );
             board.add_piece(
-                Piece::new(PieceTypes::PAWN, Color::WHITE),
+                Piece::new(PieceTypes::PAWN, PieceColor::WHITE),
                 Pos { y: 6, x: i },
             );
         }
         // Rooks
-        let rook_white = Piece::new(PieceTypes::ROOK, Color::WHITE);
-        let rook_black = Piece::new(PieceTypes::ROOK, Color::BLACK);
+        let rook_white = Piece::new(PieceTypes::ROOK, PieceColor::WHITE);
+        let rook_black = Piece::new(PieceTypes::ROOK, PieceColor::BLACK);
         board.add_piece(rook_white, Pos::new(7, 0));
         board.add_piece(rook_white, Pos::new(7, 7));
         board.add_piece(rook_black, Pos::new(0, 0));
         board.add_piece(rook_black, Pos::new(0, 7));
         // Knights
-        let knight_white = Piece::new(PieceTypes::KNIGHT, Color::WHITE);
-        let knight_black = Piece::new(PieceTypes::KNIGHT, Color::BLACK);
+        let knight_white = Piece::new(PieceTypes::KNIGHT, PieceColor::WHITE);
+        let knight_black = Piece::new(PieceTypes::KNIGHT, PieceColor::BLACK);
         board.add_piece(knight_white, Pos::new(7, 1));
         board.add_piece(knight_white, Pos::new(7, 6));
         board.add_piece(knight_black, Pos::new(0, 1));
         board.add_piece(knight_black, Pos::new(0, 6));
         // Bishops
-        let bishop_white = Piece::new(PieceTypes::BISHOP, Color::WHITE);
-        let bishop_black = Piece::new(PieceTypes::BISHOP, Color::BLACK);
+        let bishop_white = Piece::new(PieceTypes::BISHOP, PieceColor::WHITE);
+        let bishop_black = Piece::new(PieceTypes::BISHOP, PieceColor::BLACK);
         board.add_piece(bishop_white, Pos::new(7, 2));
         board.add_piece(bishop_white, Pos::new(7, 5));
         board.add_piece(bishop_black, Pos::new(0, 2));
         board.add_piece(bishop_black, Pos::new(0, 5));
         // Queens
-        board.add_piece(Piece::new(PieceTypes::QUEEN, Color::WHITE), Pos::new(7, 3));
-        board.add_piece(Piece::new(PieceTypes::QUEEN, Color::BLACK), Pos::new(0, 3));
+        board.add_piece(
+            Piece::new(PieceTypes::QUEEN, PieceColor::WHITE),
+            Pos::new(7, 3),
+        );
+        board.add_piece(
+            Piece::new(PieceTypes::QUEEN, PieceColor::BLACK),
+            Pos::new(0, 3),
+        );
         // Kings
-        board.add_piece(Piece::new(PieceTypes::KING, Color::WHITE), Pos::new(7, 4));
-        board.add_piece(Piece::new(PieceTypes::KING, Color::BLACK), Pos::new(0, 4));
+        board.add_piece(
+            Piece::new(PieceTypes::KING, PieceColor::WHITE),
+            Pos::new(7, 4),
+        );
+        board.add_piece(
+            Piece::new(PieceTypes::KING, PieceColor::BLACK),
+            Pos::new(0, 4),
+        );
         board
     }
     pub fn add_piece(&mut self, piece: Piece, position: Pos) {

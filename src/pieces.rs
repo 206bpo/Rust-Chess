@@ -1,6 +1,14 @@
+use std::collections::HashMap;
+
+use image::imageops::FilterType;
+use macroquad::{
+    text,
+    texture::{FilterMode, Texture2D, load_texture},
+};
+
 use crate::board::{Board, FieldState, Pos};
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum PieceTypes {
     PAWN,
     ROOK,
@@ -11,20 +19,21 @@ pub enum PieceTypes {
     EMPTY,
 }
 
-#[derive(Copy, Clone, Debug, PartialEq)]
-pub enum Color {
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum PieceColor {
     BLACK,
     WHITE,
+    Any,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub struct Piece {
     pub piece_type: PieceTypes,
-    pub color: Color,
+    pub color: PieceColor,
 }
 
 impl Piece {
-    pub fn new(piece_type: PieceTypes, color: Color) -> Piece {
+    pub fn new(piece_type: PieceTypes, color: PieceColor) -> Piece {
         Piece { piece_type, color }
     }
     pub fn get_legal_moves(&self, curr_pos: Pos, board: &Board) -> Vec<Pos> {
@@ -41,7 +50,7 @@ impl Piece {
     }
     pub fn get_display(self) -> char {
         match self.color {
-            Color::WHITE => match self.piece_type {
+            PieceColor::WHITE => match self.piece_type {
                 PieceTypes::PAWN => 'P',
                 PieceTypes::ROOK => 'R',
                 PieceTypes::BISHOP => 'B',
@@ -50,7 +59,7 @@ impl Piece {
                 PieceTypes::KING => 'K',
                 PieceTypes::EMPTY => '0',
             },
-            Color::BLACK => match self.piece_type {
+            PieceColor::BLACK => match self.piece_type {
                 PieceTypes::PAWN => 'p',
                 PieceTypes::ROOK => 'r',
                 PieceTypes::BISHOP => 'b',
@@ -59,18 +68,55 @@ impl Piece {
                 PieceTypes::KING => 'k',
                 PieceTypes::EMPTY => '0',
             },
+            _ => '0',
         }
     }
 }
 
+pub async fn load_all_textures(tile_size: f32) -> HashMap<(PieceTypes, PieceColor), Texture2D> {
+    let tile_size = tile_size.floor() as u16;
+    let mut map: HashMap<(PieceTypes, PieceColor), Texture2D> = HashMap::new();
+    let types: [(PieceTypes, &str); 7] = [
+        (PieceTypes::PAWN, "pawn"),
+        (PieceTypes::ROOK, "rook"),
+        (PieceTypes::KNIGHT, "knight"),
+        (PieceTypes::BISHOP, "bishop"),
+        (PieceTypes::QUEEN, "queen"),
+        (PieceTypes::KING, "king"),
+        (PieceTypes::EMPTY, ""),
+    ];
+    let colors: [(PieceColor, &str); 2] =
+        [(PieceColor::BLACK, "black"), (PieceColor::WHITE, "white")];
+    for (piece, piece_name) in types {
+        for (color, color_name) in colors {
+            if piece == PieceTypes::EMPTY {
+                map.insert((piece, color), Texture2D::empty());
+                continue;
+            }
+            let path = format!("assets/{piece_name}_{color_name}.png");
+            let img = image::open(path).unwrap().to_rgba8();
+            let img = image::imageops::resize(
+                &img,
+                tile_size as u32,
+                tile_size as u32,
+                FilterType::Lanczos3,
+            );
+            let texture = Texture2D::from_rgba8(tile_size, tile_size, &img);
+            texture.set_filter(FilterMode::Linear);
+            map.insert((piece, color), texture);
+        }
+    }
+    map
+}
+
 // Legal Moves
-fn pawn_get_legal_moves(curr_pos: Pos, color: Color, board: &Board) -> Vec<Pos> {
+fn pawn_get_legal_moves(curr_pos: Pos, color: PieceColor, board: &Board) -> Vec<Pos> {
     let mut res: Vec<Pos> = vec![];
     let curr_y = curr_pos.y;
     let curr_x = curr_pos.x;
     // get all moves a pawn generally can do
     match color {
-        Color::WHITE => {
+        PieceColor::WHITE => {
             // standart one front
             let front = Pos::new(curr_y - 1, curr_x);
             match board.get_state_at_pos(front) {
@@ -101,7 +147,7 @@ fn pawn_get_legal_moves(curr_pos: Pos, color: Color, board: &Board) -> Vec<Pos> 
                 }
             }
         }
-        Color::BLACK => {
+        PieceColor::BLACK => {
             // standart one front
             let front = Pos::new(curr_y + 1, curr_x);
             match board.get_state_at_pos(front) {
@@ -132,10 +178,11 @@ fn pawn_get_legal_moves(curr_pos: Pos, color: Color, board: &Board) -> Vec<Pos> 
                 }
             }
         }
+        _ => {}
     };
     res
 }
-fn rook_get_legal_moves(curr_pos: Pos, color: Color, board: &Board) -> Vec<Pos> {
+fn rook_get_legal_moves(curr_pos: Pos, color: PieceColor, board: &Board) -> Vec<Pos> {
     let mut res: Vec<Pos> = vec![];
     let curr_y = curr_pos.y;
     let curr_x = curr_pos.x;
@@ -198,7 +245,7 @@ fn rook_get_legal_moves(curr_pos: Pos, color: Color, board: &Board) -> Vec<Pos> 
 
     res
 }
-fn bishop_get_legal_moves(curr_pos: Pos, color: Color, board: &Board) -> Vec<Pos> {
+fn bishop_get_legal_moves(curr_pos: Pos, color: PieceColor, board: &Board) -> Vec<Pos> {
     let mut res: Vec<Pos> = vec![];
     let curr_y = curr_pos.y;
     let curr_x = curr_pos.x;
@@ -276,7 +323,7 @@ fn bishop_get_legal_moves(curr_pos: Pos, color: Color, board: &Board) -> Vec<Pos
     }
     res
 }
-fn knight_get_legal_moves(curr_pos: Pos, color: Color, board: &Board) -> Vec<Pos> {
+fn knight_get_legal_moves(curr_pos: Pos, color: PieceColor, board: &Board) -> Vec<Pos> {
     let mut res: Vec<Pos> = vec![];
     let curr_x = curr_pos.x;
     let curr_y = curr_pos.y;
@@ -306,7 +353,7 @@ fn knight_get_legal_moves(curr_pos: Pos, color: Color, board: &Board) -> Vec<Pos
     }
     res
 }
-fn queen_get_legal_moves(curr_pos: Pos, color: Color, board: &Board) -> Vec<Pos> {
+fn queen_get_legal_moves(curr_pos: Pos, color: PieceColor, board: &Board) -> Vec<Pos> {
     let mut res: Vec<Pos> = vec![];
     let curr_x = curr_pos.x;
     let curr_y = curr_pos.y;
@@ -339,7 +386,7 @@ fn queen_get_legal_moves(curr_pos: Pos, color: Color, board: &Board) -> Vec<Pos>
 
     res
 }
-fn king_get_legal_moves(curr_pos: Pos, color: Color, board: &Board) -> Vec<Pos> {
+fn king_get_legal_moves(curr_pos: Pos, color: PieceColor, board: &Board) -> Vec<Pos> {
     let mut res: Vec<Pos> = vec![];
     let curr_x = curr_pos.x;
     let curr_y = curr_pos.y;
