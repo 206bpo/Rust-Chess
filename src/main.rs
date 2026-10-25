@@ -26,10 +26,6 @@ fn window_conf() -> Conf {
 async fn main() {
     set_pc_assets_folder("assets");
     let mut board: Board = Board::new_ready_to_play();
-    board.add_piece(
-        Piece::new(PieceTypes::PAWN, PieceColor::BLACK),
-        Pos::new(6, 4),
-    );
     board.draw();
     let tile_size: f32 = screen_width().min(screen_height()) / 8.0;
     let sprite_map: HashMap<(PieceTypes, PieceColor), Texture2D> =
