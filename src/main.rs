@@ -32,7 +32,7 @@ async fn main() {
         pieces::load_all_textures(tile_size).await;
     let mut legal_moves: Vec<Pos> = Vec::new();
     let mut active_piece: Option<Pos> = None;
-    let mut active_player = PieceColor::BLACK;
+    let mut active_player = PieceColor::WHITE;
     let mut wait_for_promotion: bool = false;
     loop {
         draw_board_bg(tile_size);
