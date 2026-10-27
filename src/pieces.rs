@@ -1,9 +1,9 @@
-use std::{collections::HashMap, fmt::format};
+use std::collections::HashMap;
 
 use image::imageops::FilterType;
 use macroquad::texture::{FilterMode, Texture2D};
 
-use crate::board::{Board, FieldState, Pos};
+use crate::board::{Board, Pos};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum PieceTypes {
@@ -139,62 +139,62 @@ fn pawn_get_legal_moves(curr_pos: Pos, color: PieceColor, board: &Board) -> Vec<
         PieceColor::WHITE => {
             // standart one front
             let front = Pos::new(curr_y - 1, curr_x);
-            match board.get_state_at_pos(front) {
-                FieldState::Occupied(_) => {}
-                FieldState::Empty => res.push(front),
+            match board.get_field(front).piece {
+                Some(_) => {}
+                None => res.push(front),
             }
             // diagonals
             let diag_left = Pos::new(curr_y - 1, curr_x - 1);
             let diag_right = Pos::new(curr_y - 1, curr_x + 1);
             if diag_left.is_in_bounds() {
-                match board.get_state_at_pos(diag_left) {
-                    FieldState::Occupied(_) => res.push(diag_left),
-                    FieldState::Empty => {}
+                match board.get_field(diag_left).piece {
+                    Some(p) => res.push(diag_left),
+                    None => {}
                 }
             }
             if diag_right.is_in_bounds() {
-                match board.get_state_at_pos(diag_right) {
-                    FieldState::Occupied(_) => res.push(diag_right),
-                    FieldState::Empty => {}
+                match board.get_field(diag_right).piece {
+                    Some(_) => res.push(diag_right),
+                    None => {}
                 }
             }
             // double on first move
             if curr_y == 6 {
                 let two_step = Pos::new(curr_y - 2, curr_x);
-                match board.get_state_at_pos(two_step) {
-                    FieldState::Occupied(_) => {}
-                    FieldState::Empty => res.push(two_step),
+                match board.get_field(two_step).piece {
+                    Some(_) => {}
+                    None => res.push(two_step),
                 }
             }
         }
         PieceColor::BLACK => {
             // standart one front
             let front = Pos::new(curr_y + 1, curr_x);
-            match board.get_state_at_pos(front) {
-                FieldState::Occupied(_) => {}
-                FieldState::Empty => res.push(front),
+            match board.get_field(front).piece {
+                Some(_) => {}
+                None => res.push(front),
             }
             // diagonals
             let diag_left = Pos::new(curr_y + 1, curr_x - 1);
             let diag_right = Pos::new(curr_y + 1, curr_x + 1);
             if diag_left.is_in_bounds() {
-                match board.get_state_at_pos(diag_left) {
-                    FieldState::Occupied(_) => res.push(diag_left),
-                    FieldState::Empty => {}
+                match board.get_field(diag_left).piece {
+                    Some(_) => res.push(diag_left),
+                    None => {}
                 }
             }
             if diag_right.is_in_bounds() {
-                match board.get_state_at_pos(diag_right) {
-                    FieldState::Occupied(_) => res.push(diag_right),
-                    FieldState::Empty => {}
+                match board.get_field(diag_right).piece {
+                    Some(_) => res.push(diag_right),
+                    None => {}
                 }
             }
             // double on first move
             if curr_y == 1 {
                 let two_step = Pos::new(curr_y + 2, curr_x);
-                match board.get_state_at_pos(two_step) {
-                    FieldState::Occupied(_) => {}
-                    FieldState::Empty => res.push(two_step),
+                match board.get_field(two_step).piece {
+                    Some(_) => {}
+                    None => res.push(two_step),
                 }
             }
         }
@@ -209,11 +209,11 @@ fn rook_get_legal_moves(curr_pos: Pos, color: PieceColor, board: &Board) -> Vec<
     // x-axis +
     for i in (curr_x + 1)..=7 {
         let this_pos = Pos::new(curr_y, i);
-        let state = board.get_state_at_pos(this_pos);
-        match state {
-            FieldState::Empty => res.push(this_pos),
-            FieldState::Occupied(p) => {
-                if p.color != color {
+        let state = board.get_field(this_pos);
+        match state.piece {
+            None => res.push(this_pos),
+            Some(f) => {
+                if f.color != color {
                     res.push(this_pos);
                 }
                 break;
@@ -223,11 +223,11 @@ fn rook_get_legal_moves(curr_pos: Pos, color: PieceColor, board: &Board) -> Vec<
     // x-axis -
     for i in (0..curr_x).rev() {
         let this_pos = Pos::new(curr_y, i);
-        let state = board.get_state_at_pos(this_pos);
-        match state {
-            FieldState::Empty => res.push(this_pos),
-            FieldState::Occupied(p) => {
-                if p.color != color {
+        let state = board.get_field(this_pos);
+        match state.piece {
+            None => res.push(this_pos),
+            Some(f) => {
+                if f.color != color {
                     res.push(this_pos);
                 }
                 break;
@@ -237,11 +237,11 @@ fn rook_get_legal_moves(curr_pos: Pos, color: PieceColor, board: &Board) -> Vec<
     // y-axis +
     for i in (curr_y + 1)..=7 {
         let this_pos = Pos::new(i, curr_x);
-        let state = board.get_state_at_pos(this_pos);
-        match state {
-            FieldState::Empty => res.push(this_pos),
-            FieldState::Occupied(p) => {
-                if p.color != color {
+        let state = board.get_field(this_pos);
+        match state.piece {
+            None => res.push(this_pos),
+            Some(f) => {
+                if f.color != color {
                     res.push(this_pos);
                 }
                 break;
@@ -251,11 +251,11 @@ fn rook_get_legal_moves(curr_pos: Pos, color: PieceColor, board: &Board) -> Vec<
     // y-axis -
     for i in (0..curr_y).rev() {
         let this_pos = Pos::new(i, curr_x);
-        let state = board.get_state_at_pos(this_pos);
-        match state {
-            FieldState::Empty => res.push(this_pos),
-            FieldState::Occupied(p) => {
-                if p.color != color {
+        let state = board.get_field(this_pos);
+        match state.piece {
+            None => res.push(this_pos),
+            Some(f) => {
+                if f.color != color {
                     res.push(this_pos);
                 }
                 break;
@@ -270,22 +270,20 @@ fn bishop_get_legal_moves(curr_pos: Pos, color: PieceColor, board: &Board) -> Ve
     let curr_y = curr_pos.y;
     let curr_x = curr_pos.x;
     let mut this_pos: Pos;
-    let mut this_state: FieldState;
 
     let mut top_right_break = false;
     let mut top_left_break = false;
     let mut bottom_right_break = false;
-    let mut botom_left_break = false;
+    let mut bottom_left_break = false;
     for i in 1..=7 {
         // top right
         if !top_right_break {
             this_pos = Pos::new(curr_y - i, curr_x + i);
             if this_pos.is_in_bounds() {
-                this_state = board.get_state_at_pos(this_pos);
-                match this_state {
-                    FieldState::Empty => res.push(this_pos),
-                    FieldState::Occupied(p) => {
-                        if p.color != color {
+                match board.get_field(this_pos).piece {
+                    None => res.push(this_pos),
+                    Some(f) => {
+                        if f.color != color {
                             res.push(this_pos);
                         }
                         top_right_break = true;
@@ -297,11 +295,10 @@ fn bishop_get_legal_moves(curr_pos: Pos, color: PieceColor, board: &Board) -> Ve
         if !top_left_break {
             this_pos = Pos::new(curr_y - i, curr_x - i);
             if this_pos.is_in_bounds() {
-                this_state = board.get_state_at_pos(this_pos);
-                match this_state {
-                    FieldState::Empty => res.push(this_pos),
-                    FieldState::Occupied(p) => {
-                        if p.color != color {
+                match board.get_field(this_pos).piece {
+                    None => res.push(this_pos),
+                    Some(f) => {
+                        if f.color != color {
                             res.push(this_pos);
                         }
                         top_left_break = true;
@@ -313,11 +310,10 @@ fn bishop_get_legal_moves(curr_pos: Pos, color: PieceColor, board: &Board) -> Ve
         if !bottom_right_break {
             this_pos = Pos::new(curr_y + i, curr_x + i);
             if this_pos.is_in_bounds() {
-                this_state = board.get_state_at_pos(this_pos);
-                match this_state {
-                    FieldState::Empty => res.push(this_pos),
-                    FieldState::Occupied(p) => {
-                        if p.color != color {
+                match board.get_field(this_pos).piece {
+                    None => res.push(this_pos),
+                    Some(f) => {
+                        if f.color != color {
                             res.push(this_pos);
                         }
                         bottom_right_break = true;
@@ -325,17 +321,16 @@ fn bishop_get_legal_moves(curr_pos: Pos, color: PieceColor, board: &Board) -> Ve
                 }
             }
         }
-        if !botom_left_break {
+        if !bottom_left_break {
             this_pos = Pos::new(curr_y + i, curr_x - i);
             if this_pos.is_in_bounds() {
-                this_state = board.get_state_at_pos(this_pos);
-                match this_state {
-                    FieldState::Empty => res.push(this_pos),
-                    FieldState::Occupied(p) => {
-                        if p.color != color {
+                match board.get_field(this_pos).piece {
+                    None => res.push(this_pos),
+                    Some(f) => {
+                        if f.color != color {
                             res.push(this_pos);
                         }
-                        botom_left_break = true;
+                        bottom_left_break = true;
                     }
                 }
             }
@@ -347,7 +342,6 @@ fn knight_get_legal_moves(curr_pos: Pos, color: PieceColor, board: &Board) -> Ve
     let mut res: Vec<Pos> = vec![];
     let curr_x = curr_pos.x;
     let curr_y = curr_pos.y;
-    let mut this_state: FieldState;
     let possible_moves = vec![
         Pos::new(curr_y - 2, curr_x + 1),
         Pos::new(curr_y - 2, curr_x - 1),
@@ -360,11 +354,10 @@ fn knight_get_legal_moves(curr_pos: Pos, color: PieceColor, board: &Board) -> Ve
     ];
     for this_pos in possible_moves {
         if this_pos.is_in_bounds() {
-            this_state = board.get_state_at_pos(this_pos);
-            match this_state {
-                FieldState::Empty => res.push(this_pos),
-                FieldState::Occupied(p) => {
-                    if p.color != color {
+            match board.get_field(this_pos).piece {
+                None => res.push(this_pos),
+                Some(f) => {
+                    if f.color != color {
                         res.push(this_pos);
                     }
                 }
@@ -377,7 +370,6 @@ fn queen_get_legal_moves(curr_pos: Pos, color: PieceColor, board: &Board) -> Vec
     let mut res: Vec<Pos> = vec![];
     let curr_x = curr_pos.x;
     let curr_y = curr_pos.y;
-    let mut this_state: FieldState;
     res.append(&mut bishop_get_legal_moves(curr_pos, color, board));
     res.append(&mut rook_get_legal_moves(curr_pos, color, board));
     let possible_moves = vec![
@@ -392,11 +384,10 @@ fn queen_get_legal_moves(curr_pos: Pos, color: PieceColor, board: &Board) -> Vec
     ];
     for this_pos in possible_moves {
         if this_pos.is_in_bounds() {
-            this_state = board.get_state_at_pos(this_pos);
-            match this_state {
-                FieldState::Empty => res.push(this_pos),
-                FieldState::Occupied(p) => {
-                    if p.color != color {
+            match board.get_field(this_pos).piece {
+                None => res.push(this_pos),
+                Some(f) => {
+                    if f.color != color {
                         res.push(this_pos);
                     }
                 }
@@ -410,7 +401,6 @@ fn king_get_legal_moves(curr_pos: Pos, color: PieceColor, board: &Board) -> Vec<
     let mut res: Vec<Pos> = vec![];
     let curr_x = curr_pos.x;
     let curr_y = curr_pos.y;
-    let mut this_state: FieldState;
     let possible_moves = vec![
         Pos::new(curr_y, curr_x + 1),
         Pos::new(curr_y, curr_x - 1),
@@ -421,13 +411,26 @@ fn king_get_legal_moves(curr_pos: Pos, color: PieceColor, board: &Board) -> Vec<
         Pos::new(curr_y - 1, curr_x + 1),
         Pos::new(curr_y - 1, curr_x - 1),
     ];
+    let other_pieces = board.get_all_enemy_pieces_without_king(color);
+    let mut attacked_positions: Vec<Pos> = Vec::new();
+    for enemy_field in other_pieces {
+        attacked_positions.append(
+            &mut enemy_field
+                .piece
+                .unwrap()
+                .get_legal_moves(enemy_field.position, board),
+        );
+    }
     for this_pos in possible_moves {
         if this_pos.is_in_bounds() {
-            this_state = board.get_state_at_pos(this_pos);
-            match this_state {
-                FieldState::Empty => res.push(this_pos),
-                FieldState::Occupied(p) => {
-                    if p.color != color {
+            match board.get_field(this_pos).piece {
+                None => {
+                    if !attacked_positions.contains(&this_pos) {
+                        res.push(this_pos);
+                    }
+                }
+                Some(p) => {
+                    if p.color != color && !attacked_positions.contains(&this_pos) {
                         res.push(this_pos);
                     }
                 }

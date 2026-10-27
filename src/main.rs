@@ -1,13 +1,11 @@
 mod board;
 pub mod pieces;
 
+use crate::board::ChessField;
 use std::collections::HashMap;
 
 use crate::{
-    board::{
-        FieldState::{self},
-        Pos,
-    },
+    board::Pos,
     pieces::{Piece, PieceColor, PieceTypes},
 };
 use board::Board;
@@ -15,8 +13,8 @@ use macroquad::prelude::*;
 fn window_conf() -> Conf {
     Conf {
         window_title: String::from("Chess"),
-        window_width: 1200,
-        window_height: 1200,
+        window_width: 1000,
+        window_height: 1000,
         window_resizable: false,
         platform: miniquad::conf::Platform {
             swap_interval: Some(1),
@@ -34,7 +32,7 @@ async fn main() {
     let sprite_map: HashMap<(PieceTypes, PieceColor), Texture2D> =
         pieces::load_all_textures(tile_size).await;
     let mut legal_moves: Vec<Pos> = Vec::new();
-    let mut active_piece: Option<Pos> = None;
+    let mut active_piece: Option<ChessField> = None;
     let mut active_player = PieceColor::WHITE;
     let mut wait_for_promotion: bool = false;
     loop {
@@ -43,7 +41,7 @@ async fn main() {
         draw_legal_moves(&mut legal_moves, tile_size);
         if wait_for_promotion {
             draw_promotion_menu(
-                active_piece.unwrap(),
+                active_piece.unwrap().position,
                 &active_player,
                 &sprite_map,
                 tile_size,
@@ -55,7 +53,7 @@ async fn main() {
                 if wait_for_promotion {
                     handle_mouse_click_for_promotion(
                         &mut board,
-                        active_piece.unwrap(),
+                        active_piece.unwrap().position,
                         &mut active_player,
                         &mut wait_for_promotion,
                         tile_size,
@@ -83,7 +81,7 @@ async fn main() {
 fn handle_mouse_click_for_movement(
     board: &mut Board,
     legal_moves: &mut Vec<Pos>,
-    active_piece: &mut Option<Pos>,
+    active_piece: &mut Option<ChessField>,
     active_player: &mut PieceColor,
     wait_for_promotion: &mut bool,
     tile_size: f32,
@@ -97,18 +95,19 @@ fn handle_mouse_click_for_movement(
     if !clicked_pos.is_in_bounds() {
         return;
     }
+    let clicked_field = &mut board.get_field(clicked_pos);
 
-    if let Some(pice_pos) = active_piece
+    if let Some(_) = active_piece
         && legal_moves.contains(&clicked_pos)
     {
-        board.move_piece(*pice_pos, clicked_pos);
+        board.move_piece(clicked_field, clicked_pos);
 
-        if let FieldState::Occupied(p) = board.get_state_at_pos(clicked_pos)
+        if let Some(p) = board.get_field(clicked_pos).piece
             && p.piece_type == PieceTypes::PAWN
             && (clicked_pos.y == 0 || clicked_pos.y == 7)
         {
             *wait_for_promotion = true;
-            *active_piece = Some(clicked_pos);
+            *active_piece = Some(board.get_field(clicked_pos));
             legal_moves.clear();
             return;
         }
@@ -126,15 +125,15 @@ fn handle_mouse_click_for_movement(
     }
 
     legal_moves.clear();
-    match board.get_state_at_pos(clicked_pos) {
-        FieldState::Occupied(p) => {
+    match board.get_field(clicked_pos).piece {
+        Some(p) => {
             if p.color != *active_player {
                 return;
             }
-            *active_piece = Some(clicked_pos);
+            *active_piece = Some(board.get_field(clicked_pos));
             legal_moves.append(&mut p.get_legal_moves(clicked_pos, board));
         }
-        FieldState::Empty => {
+        None => {
             *active_piece = None;
         }
     }
@@ -195,16 +194,21 @@ fn draw_pieces(
     tile_size: f32,
     sprite_map: &HashMap<(PieceTypes, PieceColor), Texture2D>,
 ) {
-    for (y, row) in board.field.iter().enumerate() {
-        for (x, field) in row.iter().enumerate() {
-            let piece: Piece = match *field {
-                FieldState::Occupied(p) => p,
-                FieldState::Empty => {
+    for row in board.field {
+        for field in row {
+            let piece: Piece = match field.piece {
+                Some(p) => p,
+                None => {
                     continue;
                 }
             };
             let sprite = sprite_map.get(&(piece.piece_type, piece.color)).unwrap();
-            draw_texture(sprite, x as f32 * tile_size, y as f32 * tile_size, WHITE);
+            draw_texture(
+                sprite,
+                field.position.x as f32 * tile_size,
+                field.position.y as f32 * tile_size,
+                WHITE,
+            );
         }
     }
 }

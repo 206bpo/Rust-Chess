@@ -7,6 +7,12 @@ pub struct Pos {
     pub x: i8,
 }
 
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct ChessField {
+    pub position: Pos,
+    pub piece: Option<Piece>,
+}
+
 impl Pos {
     pub fn new(y: i8, x: i8) -> Pos {
         Pos { y, x }
@@ -16,26 +22,34 @@ impl Pos {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq)]
-pub enum FieldState {
-    Occupied(Piece),
-    Empty,
+impl ChessField {
+    pub fn new(position: Pos, piece: Option<Piece>) -> ChessField {
+        ChessField { position, piece }
+    }
+    pub fn set_piece(&mut self, piece: Option<Piece>) {
+        self.piece = piece;
+    }
 }
 
 // pub struct Square {
 //     position: Pos,
 //     state: FieldState
 // }
-
+#[derive(Clone)]
 pub struct Board {
-    pub field: [[FieldState; 8]; 8],
+    pub field: [[ChessField; 8]; 8],
 }
 
 impl Board {
     pub fn new_empty() -> Board {
-        Board {
-            field: [[FieldState::Empty; 8]; 8],
-        }
+        let new_field: [[ChessField; 8]; 8] = std::array::from_fn(|y| {
+            std::array::from_fn(|x| ChessField {
+                position: Pos::new(y as i8, x as i8),
+                piece: None,
+            })
+        });
+
+        Board { field: new_field }
     }
     pub fn new_ready_to_play() -> Board {
         let mut board = Board::new_empty();
@@ -94,23 +108,25 @@ impl Board {
     pub fn add_piece(&mut self, piece: Piece, position: Pos) {
         let x = position.x as usize;
         let y = position.y as usize;
-        self.field[y][x] = FieldState::Occupied(piece);
+        self.field[y][x] = ChessField {
+            position,
+            piece: Some(piece),
+        };
     }
-    pub fn get_state_at_pos(&self, position: Pos) -> FieldState {
+    pub fn get_field(&self, position: Pos) -> ChessField {
         let x = position.x as usize;
         let y = position.y as usize;
         self.field[y][x]
     }
-    fn set_state_at_pos(&mut self, position: Pos, new_state: FieldState) {
-        if !position.is_in_bounds() {
+    fn set_field(&mut self, new_state: ChessField) {
+        if !new_state.position.is_in_bounds() {
             return;
         };
-        self.field[position.y as usize][position.x as usize] = new_state;
+        self.field[new_state.position.y as usize][new_state.position.x as usize] = new_state;
     }
-    pub fn move_piece(&mut self, from: Pos, to: Pos) {
-        let temp = self.get_state_at_pos(from);
-        self.set_state_at_pos(from, FieldState::Empty);
-        self.set_state_at_pos(to, temp);
+    pub fn move_piece(&self, field: &mut ChessField, to: Pos) {
+        self.get_field(to).set_piece(field.piece);
+        field.set_piece(None);
     }
     pub fn draw(&self) {
         print!("{}", self);
@@ -119,13 +135,43 @@ impl Board {
         if (position.y != 0 && position.y != 7) || !position.is_in_bounds() {
             return;
         }
-        let curr_piece = match self.get_state_at_pos(position) {
-            FieldState::Occupied(p) => p,
-            FieldState::Empty => return,
-        };
-        let new_piece = Piece::new(new_piece.piece_type, curr_piece.color);
-        self.set_state_at_pos(position, FieldState::Occupied(new_piece));
-        self.draw();
+        self.set_field(ChessField::new(position, Some(new_piece)));
+    }
+    pub fn get_all_enemy_pieces_without_king(&self, color: PieceColor) -> Vec<ChessField> {
+        let mut res: Vec<ChessField> = Vec::new();
+        for y in self.field {
+            for x in y {
+                match x.piece {
+                    None => {
+                        continue;
+                    }
+                    Some(p) => {
+                        if p.color != color && p.piece_type != PieceTypes::KING {
+                            res.push(x);
+                        }
+                    }
+                }
+            }
+        }
+        res
+    }
+    pub fn get_all_enemy_pieces(&self, color: PieceColor) -> Vec<ChessField> {
+        let mut res: Vec<ChessField> = Vec::new();
+        for y in self.field {
+            for x in y {
+                match x.piece {
+                    None => {
+                        continue;
+                    }
+                    Some(p) => {
+                        if p.color != color {
+                            res.push(x);
+                        }
+                    }
+                }
+            }
+        }
+        res
     }
 }
 
@@ -138,9 +184,9 @@ impl fmt::Display for Board {
                 write!(
                     f,
                     "{} ",
-                    match x {
-                        FieldState::Occupied(p) => p.get_display(),
-                        _ => '0',
+                    match x.piece {
+                        Some(p) => p.get_display(),
+                        None => '0',
                     }
                 )?;
             }
@@ -160,9 +206,9 @@ impl fmt::Debug for Board {
                 write!(
                     f,
                     "{} ",
-                    match x {
-                        FieldState::Occupied(p) => p.get_display(),
-                        _ => '0',
+                    match x.piece {
+                        Some(p) => p.get_display(),
+                        None => '0',
                     }
                 )?;
             }
