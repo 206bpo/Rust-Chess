@@ -1,12 +1,11 @@
 mod board;
 pub mod pieces;
 
-use crate::board::ChessField;
 use std::collections::HashMap;
 
 use crate::{
     board::Pos,
-    pieces::{Piece, PieceColor, PieceTypes},
+    pieces::{Piece, PieceColor, PieceTypes, remove_moves_that_result_in_check},
 };
 use board::Board;
 use macroquad::prelude::*;
@@ -30,18 +29,18 @@ async fn main() {
     let mut board: Board = Board::new_ready_to_play();
     let tile_size: f32 = screen_width().min(screen_height()) / 8.0;
     let sprite_map: HashMap<(PieceTypes, PieceColor), Texture2D> =
-        pieces::load_all_textures(tile_size).await;
+        pieces::load_all_textures(tile_size);
     let mut legal_moves: Vec<Pos> = Vec::new();
-    let mut active_piece: Option<ChessField> = None;
+    let mut active_piece: Option<Pos> = None;
     let mut active_player = PieceColor::WHITE;
     let mut wait_for_promotion: bool = false;
     loop {
         draw_board_bg(tile_size);
         draw_pieces(&board, tile_size, &sprite_map);
-        draw_legal_moves(&mut legal_moves, tile_size);
+        draw_legal_moves(&legal_moves, tile_size);
         if wait_for_promotion {
             draw_promotion_menu(
-                active_piece.unwrap().position,
+                active_piece.unwrap(),
                 &active_player,
                 &sprite_map,
                 tile_size,
@@ -53,7 +52,7 @@ async fn main() {
                 if wait_for_promotion {
                     handle_mouse_click_for_promotion(
                         &mut board,
-                        active_piece.unwrap().position,
+                        active_piece.unwrap(),
                         &mut active_player,
                         &mut wait_for_promotion,
                         tile_size,
@@ -68,8 +67,7 @@ async fn main() {
                         &mut active_player,
                         &mut wait_for_promotion,
                         tile_size,
-                        mx,
-                        my,
+                        (mx, my),
                     );
                 }
             }
@@ -81,12 +79,11 @@ async fn main() {
 fn handle_mouse_click_for_movement(
     board: &mut Board,
     legal_moves: &mut Vec<Pos>,
-    active_piece: &mut Option<ChessField>,
+    active_piece: &mut Option<Pos>,
     active_player: &mut PieceColor,
     wait_for_promotion: &mut bool,
     tile_size: f32,
-    mx: f32,
-    my: f32,
+    (mx, my): (f32, f32),
 ) {
     let clicked_pos = Pos::new(
         (my / tile_size).floor() as i8,
@@ -95,31 +92,29 @@ fn handle_mouse_click_for_movement(
     if !clicked_pos.is_in_bounds() {
         return;
     }
-    let clicked_field = &mut board.get_field(clicked_pos);
-
-    if let Some(_) = active_piece
+    // piece is selected and a legal move field is clickes
+    if let Some(selected_field) = active_piece
         && legal_moves.contains(&clicked_pos)
     {
-        board.move_piece(clicked_field, clicked_pos);
+        board.move_piece(*selected_field, clicked_pos);
 
+        // check for promotion
         if let Some(p) = board.get_field(clicked_pos).piece
             && p.piece_type == PieceTypes::PAWN
             && (clicked_pos.y == 0 || clicked_pos.y == 7)
         {
             *wait_for_promotion = true;
-            *active_piece = Some(board.get_field(clicked_pos));
+            *active_piece = Some(clicked_pos);
             legal_moves.clear();
             return;
         }
 
+        // handle Player switch
         *active_piece = None;
         legal_moves.clear();
         match active_player {
             PieceColor::BLACK => *active_player = PieceColor::WHITE,
             PieceColor::WHITE => *active_player = PieceColor::BLACK,
-            _ => {
-                return;
-            }
         }
         return;
     }
@@ -130,8 +125,9 @@ fn handle_mouse_click_for_movement(
             if p.color != *active_player {
                 return;
             }
-            *active_piece = Some(board.get_field(clicked_pos));
+            *active_piece = Some(clicked_pos);
             legal_moves.append(&mut p.get_legal_moves(clicked_pos, board));
+            remove_moves_that_result_in_check(legal_moves, board.get_field(clicked_pos), board);
         }
         None => {
             *active_piece = None;
@@ -164,17 +160,14 @@ fn handle_mouse_click_for_promotion(
                 }
             },
             PieceColor::WHITE => match clicked_position.y {
-                1 => PieceTypes::QUEEN,
-                2 => PieceTypes::ROOK,
-                3 => PieceTypes::BISHOP,
-                4 => PieceTypes::KNIGHT,
+                0 => PieceTypes::QUEEN,
+                1 => PieceTypes::ROOK,
+                2 => PieceTypes::BISHOP,
+                3 => PieceTypes::KNIGHT,
                 _ => {
                     return;
                 }
             },
-            _ => {
-                return;
-            }
         };
         let new_piece: Piece = Piece::new(piece_type, *active_player);
         board.promote(promote_position, new_piece);
@@ -182,9 +175,6 @@ fn handle_mouse_click_for_promotion(
         *active_player = match active_player {
             PieceColor::BLACK => PieceColor::WHITE,
             PieceColor::WHITE => PieceColor::BLACK,
-            _ => {
-                return;
-            }
         }
     }
 }
@@ -212,7 +202,7 @@ fn draw_pieces(
         }
     }
 }
-fn draw_legal_moves(legal_moves: &mut Vec<Pos>, tile_size: f32) {
+fn draw_legal_moves(legal_moves: &Vec<Pos>, tile_size: f32) {
     for position in legal_moves {
         draw_circle(
             position.x as f32 * tile_size + (tile_size / 2.0),
@@ -258,7 +248,6 @@ fn draw_promotion_menu(
         let offset = match active_player {
             PieceColor::WHITE => 1,
             PieceColor::BLACK => -1,
-            _ => 0,
         };
         let y = (position.y + (i as i8 * offset)) as f32 * tile_size;
         let x = position.x as f32 * tile_size;

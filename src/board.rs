@@ -124,9 +124,10 @@ impl Board {
         };
         self.field[new_state.position.y as usize][new_state.position.x as usize] = new_state;
     }
-    pub fn move_piece(&self, field: &mut ChessField, to: Pos) {
-        self.get_field(to).set_piece(field.piece);
-        field.set_piece(None);
+    pub fn move_piece(&mut self, from: Pos, to: Pos) {
+        let piece = self.get_field(from).piece;
+        self.set_field(ChessField::new(from, None));
+        self.set_field(ChessField::new(to, piece));
     }
     pub fn draw(&self) {
         print!("{}", self);
@@ -172,6 +173,18 @@ impl Board {
             }
         }
         res
+    }
+    pub fn get_king_field(&self, color: PieceColor) -> Pos {
+        for y in self.field {
+            for x in y {
+                if let Some(p) = x.piece {
+                    if p.piece_type == PieceTypes::KING && p.color == color {
+                        return x.position;
+                    }
+                }
+            }
+        }
+        Pos::new(0, 0)
     }
 }
 

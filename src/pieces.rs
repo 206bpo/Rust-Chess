@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use image::imageops::FilterType;
 use macroquad::texture::{FilterMode, Texture2D};
 
-use crate::board::{Board, Pos};
+use crate::board::{Board, ChessField, Pos};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum PieceTypes {
@@ -13,14 +13,21 @@ pub enum PieceTypes {
     KNIGHT,
     QUEEN,
     KING,
-    EMPTY,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum PieceColor {
     BLACK,
     WHITE,
-    Any,
+}
+
+impl PieceColor {
+    pub fn opposite(color: PieceColor) -> PieceColor {
+        match color {
+            Self::BLACK => Self::WHITE,
+            Self::WHITE => Self::BLACK,
+        }
+    }
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -35,15 +42,16 @@ impl Piece {
     }
     pub fn get_legal_moves(&self, curr_pos: Pos, board: &Board) -> Vec<Pos> {
         let color = self.color;
-        match self.piece_type {
+        let mut res: Vec<Pos> = Vec::new();
+        res.append(&mut match self.piece_type {
             PieceTypes::PAWN => pawn_get_legal_moves(curr_pos, color, board),
             PieceTypes::ROOK => rook_get_legal_moves(curr_pos, color, board),
             PieceTypes::BISHOP => bishop_get_legal_moves(curr_pos, color, board),
             PieceTypes::KNIGHT => knight_get_legal_moves(curr_pos, color, board),
             PieceTypes::QUEEN => queen_get_legal_moves(curr_pos, color, board),
             PieceTypes::KING => king_get_legal_moves(curr_pos, color, board),
-            PieceTypes::EMPTY => vec![],
-        }
+        });
+        res
     }
     pub fn get_display(self) -> char {
         match self.color {
@@ -51,82 +59,47 @@ impl Piece {
                 PieceTypes::PAWN => 'P',
                 PieceTypes::ROOK => 'R',
                 PieceTypes::BISHOP => 'B',
-                PieceTypes::KNIGHT => 'K',
+                PieceTypes::KNIGHT => 'N',
                 PieceTypes::QUEEN => 'Q',
                 PieceTypes::KING => 'K',
-                PieceTypes::EMPTY => '0',
             },
             PieceColor::BLACK => match self.piece_type {
                 PieceTypes::PAWN => 'p',
                 PieceTypes::ROOK => 'r',
                 PieceTypes::BISHOP => 'b',
-                PieceTypes::KNIGHT => 'k',
+                PieceTypes::KNIGHT => 'n',
                 PieceTypes::QUEEN => 'q',
                 PieceTypes::KING => 'k',
-                PieceTypes::EMPTY => '0',
             },
-            _ => '0',
         }
     }
 }
 
-macro_rules! sprite {
-    ($name:literal) => {
-        include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/assets/",
-            $name,
-            ".png"
-        )) as &'static [u8]
-    };
+pub fn remove_moves_that_result_in_check(moves: &mut Vec<Pos>, field: ChessField, board: &Board) {
+    let mut curr_board: Board;
+    let color = field.piece.unwrap().color;
+    let curr_pos = field.position;
+    let mut to_pop: Vec<usize> = Vec::new();
+    for (i, possible) in moves.clone().iter().enumerate() {
+        curr_board = board.clone();
+        curr_board.move_piece(curr_pos, *possible);
+        let king_pos: Pos = curr_board.get_king_field(color);
+        for curr_field in curr_board.get_all_enemy_pieces(color) {
+            let curr_piece = curr_field.piece.unwrap();
+            let curr_piece_moves = curr_piece.get_legal_moves(curr_field.position, &curr_board);
+            if curr_piece_moves.contains(&king_pos) {
+                to_pop.push(i);
+                break;
+            }
+        }
+    }
+    for i in to_pop.iter().rev() {
+        moves.remove(*i);
+    }
 }
 
-const SPRITES: [(PieceTypes, PieceColor, &[u8]); 12] = [
-    (PieceTypes::PAWN, PieceColor::WHITE, sprite!("pawn_white")),
-    (PieceTypes::PAWN, PieceColor::BLACK, sprite!("pawn_black")),
-    (PieceTypes::ROOK, PieceColor::WHITE, sprite!("rook_white")),
-    (PieceTypes::ROOK, PieceColor::BLACK, sprite!("rook_black")),
-    (
-        PieceTypes::KNIGHT,
-        PieceColor::WHITE,
-        sprite!("knight_white"),
-    ),
-    (
-        PieceTypes::KNIGHT,
-        PieceColor::BLACK,
-        sprite!("knight_black"),
-    ),
-    (
-        PieceTypes::BISHOP,
-        PieceColor::WHITE,
-        sprite!("bishop_white"),
-    ),
-    (
-        PieceTypes::BISHOP,
-        PieceColor::BLACK,
-        sprite!("bishop_black"),
-    ),
-    (PieceTypes::QUEEN, PieceColor::WHITE, sprite!("queen_white")),
-    (PieceTypes::QUEEN, PieceColor::BLACK, sprite!("queen_black")),
-    (PieceTypes::KING, PieceColor::WHITE, sprite!("king_white")),
-    (PieceTypes::KING, PieceColor::BLACK, sprite!("king_black")),
-];
-
-pub async fn load_all_textures(tile_size: f32) -> HashMap<(PieceTypes, PieceColor), Texture2D> {
-    let size = tile_size.floor() as u32;
-    let mut map = HashMap::new();
-
-    for (piece, color, bytes) in SPRITES {
-        let img = image::load_from_memory(bytes)
-            .expect("embedded sprite is not a valid image")
-            .to_rgba8();
-        let img = image::imageops::resize(&img, size, size, FilterType::Lanczos3);
-
-        let texture = Texture2D::from_rgba8(size as u16, size as u16, &img);
-        texture.set_filter(FilterMode::Linear);
-        map.insert((piece, color), texture);
-    }
-    map
+pub fn check_for_checkamte() {
+    unimplemented!()
 }
 
 // Legal Moves
@@ -139,66 +112,61 @@ fn pawn_get_legal_moves(curr_pos: Pos, color: PieceColor, board: &Board) -> Vec<
         PieceColor::WHITE => {
             // standart one front
             let front = Pos::new(curr_y - 1, curr_x);
-            match board.get_field(front).piece {
-                Some(_) => {}
-                None => res.push(front),
+            if board.get_field(front).piece.is_none() {
+                res.push(front);
+                // double on first move
+                if curr_y == 6 {
+                    let two_step = Pos::new(curr_y - 2, curr_x);
+                    if board.get_field(two_step).piece.is_none() {
+                        res.push(two_step);
+                    }
+                }
             }
             // diagonals
             let diag_left = Pos::new(curr_y - 1, curr_x - 1);
             let diag_right = Pos::new(curr_y - 1, curr_x + 1);
-            if diag_left.is_in_bounds() {
-                match board.get_field(diag_left).piece {
-                    Some(p) => res.push(diag_left),
-                    None => {}
-                }
+            if diag_left.is_in_bounds()
+                && let Some(piece) = board.get_field(diag_left).piece
+                && piece.color != color
+            {
+                res.push(diag_left);
             }
-            if diag_right.is_in_bounds() {
-                match board.get_field(diag_right).piece {
-                    Some(_) => res.push(diag_right),
-                    None => {}
-                }
-            }
-            // double on first move
-            if curr_y == 6 {
-                let two_step = Pos::new(curr_y - 2, curr_x);
-                match board.get_field(two_step).piece {
-                    Some(_) => {}
-                    None => res.push(two_step),
-                }
+            if diag_right.is_in_bounds()
+                && let Some(piece) = board.get_field(diag_right).piece
+                && piece.color != color
+            {
+                res.push(diag_right);
             }
         }
         PieceColor::BLACK => {
             // standart one front
             let front = Pos::new(curr_y + 1, curr_x);
-            match board.get_field(front).piece {
-                Some(_) => {}
-                None => res.push(front),
+            if board.get_field(front).piece.is_none() {
+                res.push(front);
+                // double on first move
+                if curr_y == 1 {
+                    let two_step = Pos::new(curr_y + 2, curr_x);
+                    if board.get_field(two_step).piece.is_none() {
+                        res.push(two_step);
+                    }
+                }
             }
             // diagonals
             let diag_left = Pos::new(curr_y + 1, curr_x - 1);
             let diag_right = Pos::new(curr_y + 1, curr_x + 1);
-            if diag_left.is_in_bounds() {
-                match board.get_field(diag_left).piece {
-                    Some(_) => res.push(diag_left),
-                    None => {}
-                }
+            if diag_left.is_in_bounds()
+                && let Some(piece) = board.get_field(diag_left).piece
+                && piece.color != color
+            {
+                res.push(diag_left);
             }
-            if diag_right.is_in_bounds() {
-                match board.get_field(diag_right).piece {
-                    Some(_) => res.push(diag_right),
-                    None => {}
-                }
-            }
-            // double on first move
-            if curr_y == 1 {
-                let two_step = Pos::new(curr_y + 2, curr_x);
-                match board.get_field(two_step).piece {
-                    Some(_) => {}
-                    None => res.push(two_step),
-                }
+            if diag_right.is_in_bounds()
+                && let Some(piece) = board.get_field(diag_right).piece
+                && piece.color != color
+            {
+                res.push(diag_right);
             }
         }
-        _ => {}
     };
     res
 }
@@ -368,33 +336,8 @@ fn knight_get_legal_moves(curr_pos: Pos, color: PieceColor, board: &Board) -> Ve
 }
 fn queen_get_legal_moves(curr_pos: Pos, color: PieceColor, board: &Board) -> Vec<Pos> {
     let mut res: Vec<Pos> = vec![];
-    let curr_x = curr_pos.x;
-    let curr_y = curr_pos.y;
     res.append(&mut bishop_get_legal_moves(curr_pos, color, board));
     res.append(&mut rook_get_legal_moves(curr_pos, color, board));
-    let possible_moves = vec![
-        Pos::new(curr_y, curr_x + 1),
-        Pos::new(curr_y, curr_x - 1),
-        Pos::new(curr_y + 1, curr_x),
-        Pos::new(curr_y + 1, curr_x + 1),
-        Pos::new(curr_y + 1, curr_x - 1),
-        Pos::new(curr_y - 1, curr_x),
-        Pos::new(curr_y - 1, curr_x + 1),
-        Pos::new(curr_y - 1, curr_x - 1),
-    ];
-    for this_pos in possible_moves {
-        if this_pos.is_in_bounds() {
-            match board.get_field(this_pos).piece {
-                None => res.push(this_pos),
-                Some(f) => {
-                    if f.color != color {
-                        res.push(this_pos);
-                    }
-                }
-            }
-        }
-    }
-
     res
 }
 fn king_get_legal_moves(curr_pos: Pos, color: PieceColor, board: &Board) -> Vec<Pos> {
@@ -439,4 +382,63 @@ fn king_get_legal_moves(curr_pos: Pos, color: PieceColor, board: &Board) -> Vec<
     }
 
     res
+}
+
+macro_rules! sprite {
+    ($name:literal) => {
+        include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/assets/",
+            $name,
+            ".png"
+        )) as &'static [u8]
+    };
+}
+
+const SPRITES: [(PieceTypes, PieceColor, &[u8]); 12] = [
+    (PieceTypes::PAWN, PieceColor::WHITE, sprite!("pawn_white")),
+    (PieceTypes::PAWN, PieceColor::BLACK, sprite!("pawn_black")),
+    (PieceTypes::ROOK, PieceColor::WHITE, sprite!("rook_white")),
+    (PieceTypes::ROOK, PieceColor::BLACK, sprite!("rook_black")),
+    (
+        PieceTypes::KNIGHT,
+        PieceColor::WHITE,
+        sprite!("knight_white"),
+    ),
+    (
+        PieceTypes::KNIGHT,
+        PieceColor::BLACK,
+        sprite!("knight_black"),
+    ),
+    (
+        PieceTypes::BISHOP,
+        PieceColor::WHITE,
+        sprite!("bishop_white"),
+    ),
+    (
+        PieceTypes::BISHOP,
+        PieceColor::BLACK,
+        sprite!("bishop_black"),
+    ),
+    (PieceTypes::QUEEN, PieceColor::WHITE, sprite!("queen_white")),
+    (PieceTypes::QUEEN, PieceColor::BLACK, sprite!("queen_black")),
+    (PieceTypes::KING, PieceColor::WHITE, sprite!("king_white")),
+    (PieceTypes::KING, PieceColor::BLACK, sprite!("king_black")),
+];
+
+pub fn load_all_textures(tile_size: f32) -> HashMap<(PieceTypes, PieceColor), Texture2D> {
+    let size = tile_size.floor() as u32;
+    let mut map = HashMap::new();
+
+    for (piece, color, bytes) in SPRITES {
+        let img = image::load_from_memory(bytes)
+            .expect("embedded sprite is not a valid image")
+            .to_rgba8();
+        let img = image::imageops::resize(&img, size, size, FilterType::Lanczos3);
+
+        let texture = Texture2D::from_rgba8(size as u16, size as u16, &img);
+        texture.set_filter(FilterMode::Linear);
+        map.insert((piece, color), texture);
+    }
+    map
 }
